@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Quiz Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    #login-section, #waiting-section, #quiz-section, #results-section {
+      margin-bottom: 20px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    #waiting-section, #quiz-section, #results-section {
+      display: none;
+    }
+    .option {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      text-align: left;
+      background-color: #f0f0f0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .option:hover {
+      background-color: #e0e0e0;
+    }
+    .option.selected {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .option.correct {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .option.incorrect {
+      background-color: #f44336;
+      color: white;
+    }
+    #scoreboard {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    #scoreboard th, #scoreboard td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    #status {
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+    }
+    .connected {
+      background-color: #dff0d8;
+      color: #3c763d;
+    }
+    .disconnected {
+      background-color: #f2dede;
+      color: #a94442;
+    }
+    #question-counter {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    #server-url-container {
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Network Quiz Game</h1>
+  
+  <div id="status" class="disconnected">Connecting to server...</div>
+  
+  <!-- Server URL Configuration -->
+  <div id="server-url-container">
+    <label for="server-url">Server URL:</label>
+    <input type="text" id="server-url" value="ws://localhost:8080" style="width: 200px;">
+    <button id="connect-btn">Connect</button>
+  </div>
+  
+  <!-- Login Section -->
+  <div id="login-section">
+    <h2>Enter your username</h2>
+    <input type="text" id="username" placeholder="Your username">
+    <button id="join-btn">Join Quiz</button>
+  </div>
+  
+  <!-- Waiting Section -->
+  <div id="waiting-section">
+    <h2>Waiting Room</h2>
+    <p>Players connected:</p>
+    <ul id="player-list"></ul>
+    <button id="start-btn">Start Quiz</button>
+  </div>
+  
+  <!-- Quiz Section -->
+  <div id="quiz-section">
+    <div id="question-counter"></div>
+    <h2 id="question-text"></h2>
+    <div id="options-container"></div>
+  </div>
+  
+  <!-- Results Section -->
+  <div id="results-section">
+    <h2>Current Scores</h2>
+    <table id="scoreboard">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Player</th>
+          <th>Score</th>
+        </tr>
+      </thead>
+      <tbody id="scores-body"></tbody>
+    </table>
+  </div>
+
+  <script>
+    // DOM elements
+    const statusEl = document.getElementById('status');
+    const serverUrlInput = document.getElementById('server-url');
+    const connectBtn = document.getElementById('connect-btn');
+    const loginSection = document.getElementById('login-section');
+    const waitingSection = document.getElementById('waiting-section');
+    const quizSection = document.getElementById('quiz-section');
+    const resultsSection = document.getElementById('results-section');
+    const usernameInput = document.getElementById('username');
+    const joinBtn = document.getElementById('join-btn');
+    const startBtn = document.getElementById('start-btn');
+    const playerList = document.getElementById('player-list');
+    const questionText = document.getElementById('question-text');
+    const optionsContainer = document.getElementById('options-container');
+    const questionCounter = document.getElementById('question-counter');
+    const scoresBody = document.getElementById('scores-body');
+    
+    // Quiz state
+    let username = '';
+    let ws = null;
+    let currentQuestionIndex = 0;
+    let hasAnswered = false;
+    
+    // Connect to WebSocket server
+    function connectToServer() {
+      // Use the URL from the input field
+      const serverUrl = serverUrlInput.value.trim();
+      
+      // Close existing connection if any
+      if (ws) {
+        ws.close();
+      }
+      
+      statusEl.textContent = `Connecting to ${serverUrl}...`;
+      statusEl.className = 'disconnected';
+      
+      try {
+        ws = new WebSocket(serverUrl);
+        
+        ws.onopen = () => {
+          console.log('Connected to server');
+          statusEl.textContent = `Connected to ${serverUrl}`;
+          statusEl.className = 'connected';
+          loginSection.style.display = 'block';
+        };
+        
+        ws.onclose = (event) => {
+          console.log('Disconnected from server', event.code, event.reason);
+          statusEl.textContent = `Disconnected from server (code: ${event.code}). Please check the server URL and try again.`;
+          statusEl.className = 'disconnected';
+          loginSection.style.display = 'none';
+        };
+        
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          statusEl.textContent = 'Connection error. Please check the server URL and ensure the server is running.';
+          statusEl.className = 'disconnected';
+          loginSection.style.display = 'none';
+        };
+        
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            console.log('Received message:', message);
+            
+            switch (message.type) {
+              case 'welcome':
+                // Show waiting section after successful login
+                if (username) {
+                  showSection(waitingSection);
+                }
+                break;
+                
+              case 'playerList':
+                // Update player list
+                updatePlayerList(message.players);
+                
+                // Update scores if available
+                if (message.scores) {
+                  updateScoreboard(message.scores);
+                  showSection(resultsSection, true); // Show but don't hide others
+                }
+                break;
+                
+              case 'question':
+                // Display new question
+                currentQuestionIndex = message.questionNumber - 1;
+                displayQuestion(message);
+                hasAnswered = false;
+                
+                // Show quiz section
+                showSection(quizSection);
+                break;
+                
+              case 'answerResult':
+                // Display result
+                showAnswerResult(message);
+                break;
+                
+              case 'scores':
+                // Update and show scoreboard
+                updateScoreboard(message.scores);
+                showSection(resultsSection, true); // Show but don't hide others
+                break;
+                
+              case 'quizEnd':
+                // Show final results
+                updateScoreboard(message.scores);
+                showSection(resultsSection);
+                
+                // Display end message
+                const endMessage = document.createElement('h2');
+                endMessage.textContent = 'Quiz has ended!';
+                resultsSection.insertBefore(endMessage, resultsSection.firstChild);
+                break;
+                
+              default:
+                console.log('Unknown message type:', message.type);
+            }
+          } catch (error) {
+            console.error('Error processing message:', error);
+          }
+        };
+      } catch (error) {
+        console.error('Failed to create WebSocket:', error);
+        statusEl.textContent = 'Failed to create WebSocket connection. Please check the URL format.';
+        statusEl.className = 'disconnected';
+      }
+    }
+    
+    // Send message to the server
+    function sendMessage(message) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
+      } else {
+        console.error('WebSocket is not connected');
+        alert('Not connected to server. Please reconnect before continuing.');
+      }
+    }
+    
+    // Join the quiz with username
+    function joinQuiz() {
+      username = usernameInput.value.trim();
+      if (username) {
+        // Send username to server
+        sendMessage({
+          type: 'setUsername',
+          username: username
+        });
+        
+        // Show waiting section
+        showSection(waitingSection);
+      } else {
+        alert('Please enter a username');
+      }
+    }
+    
+    // Start the quiz
+    function startQuiz() {
+      sendMessage({
+        type: 'startQuiz'
+      });
+    }
+    
+    // Update player list
+    function updatePlayerList(players) {
+      playerList.innerHTML = '';
+      players.forEach(player => {
+        const li = document.createElement('li');
+        li.textContent = player;
+        playerList.appendChild(li);
+      });
+    }
+    
+    // Display question and options
+    function displayQuestion(questionData) {
+      questionCounter.textContent = `Question ${questionData.questionNumber} of ${questionData.totalQuestions}`;
+      questionText.textContent = questionData.question;
+      
+      // Clear options container
+      optionsContainer.innerHTML = '';
+      
+      // Add option buttons
+      questionData.options.forEach((option, index) => {
+        const button = document.createElement('button');
+        button.className = 'option';
+        button.textContent = option;
+        button.dataset.index = index;
+        button.addEventListener('click', () => selectAnswer(index));
+        optionsContainer.appendChild(button);
+      });
+    }
+    
+    // Select an answer
+    function selectAnswer(answerIndex) {
+      if (hasAnswered) return;
+      
+      // Highlight selected option
+      const options = document.querySelectorAll('.option');
+      options.forEach(option => option.classList.remove('selected'));
+      options[answerIndex].classList.add('selected');
+      
+      // Send answer to server
+      sendMessage({
+        type: 'answer',
+        questionIndex: currentQuestionIndex,
+        answerIndex: answerIndex
+      });
+      
+      hasAnswered = true;
+    }
+    
+    // Show answer result
+    function showAnswerResult(result) {
+      const options = document.querySelectorAll('.option');
+      
+      // Reset all options
+      options.forEach(option => {
+        option.classList.remove('correct', 'incorrect', 'selected');
+      });
+      
+      // Show correct answer
+      options[result.correctAnswer].classList.add('correct');
+      
+      // If wrong answer was selected, mark it
+      if (!result.correct) {
+        const selectedOption = document.querySelector('.option.selected');
+        if (selectedOption) {
+          selectedOption.classList.add('incorrect');
+        }
+      }
+      
+      // Disable all options
+      options.forEach(option => {
+        option.disabled = true;
+      });
+    }
+    
+    // Update scoreboard
+    function updateScoreboard(scores) {
+      scoresBody.innerHTML = '';
+      scores.forEach((player, index) => {
+        const row = document.createElement('tr');
+        
+        const rankCell = document.createElement('td');
+        rankCell.textContent = index + 1;
+        
+        const nameCell = document.createElement('td');
+        nameCell.textContent = player.username;
+        if (player.username === username) {
+          nameCell.style.fontWeight = 'bold';
+        }
+        
+        const scoreCell = document.createElement('td');
+        scoreCell.textContent = player.score;
+        
+        row.appendChild(rankCell);
+        row.appendChild(nameCell);
+        row.appendChild(scoreCell);
+        scoresBody.appendChild(row);
+      });
+    }
+    
+    // Show a section and hide others
+    function showSection(section, additive = false) {
+      if (!additive) {
+        // Hide all sections
+        loginSection.style.display = 'none';
+        waitingSection.style.display = 'none';
+        quizSection.style.display = 'none';
+        resultsSection.style.display = 'none';
+      }
+      
+      // Show the requested section
+      section.style.display = 'block';
+    }
+    
+    // Event listeners
+    connectBtn.addEventListener('click', connectToServer);
+    joinBtn.addEventListener('click', joinQuiz);
+    startBtn.addEventListener('click', startQuiz);
+    
+    // Login section should be hidden initially until connected
+    loginSection.style.display = 'none';
+    
+    // Log browser WebSocket support
+    console.log("Browser WebSocket support:", typeof WebSocket !== 'undefined');
+  </script>
+</body>
+</html>
