@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Network Quiz Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    section {
+      margin-bottom: 20px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    .hidden {
+      display: none;
+    }
+    .option {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      text-align: left;
+      background-color: #f0f0f0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .option:hover {
+      background-color: #e0e0e0;
+    }
+    .selected {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .correct {
+      background-color: #4CAF50 !important;
+      color: white;
+    }
+    .incorrect {
+      background-color: #f44336 !important;
+      color: white;
+    }
+    /*#scoreboard p {
+      margin: 4px 0;
+    }*/
+    /* Scoreboard container */
+#scoreboard p {
+  max-width: 300px;
+  margin: 30px auto;
+  background: #f0f4f8;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  font-family: 'Segoe UI', sans-serif;
+  transition: all 0.3s ease;
+}
+
+/* Leaderboard title */
+.scoreboard h2 {
+  text-align: center;
+  color: #2c3e50;
+  margin-bottom: 15px;
+  font-size: 1.5em;
+}
+
+#results {
+      width: 100%;
+      border-collapse: collapse;
+    }
+ #results th, #results td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+
+  </style>
+</head>
+<body>
+  <h1>Network Quiz Game</h1>
+
+  <!-- Login -->
+  <section id="login-section">
+    <h2>Enter your username</h2>
+    <input type="text" id="username" placeholder="Your username" />
+    <button id="joinBtn">Join Quiz</button>
+  </section>
+
+  <!-- Quiz Area -->
+  <section id="quizContainer" class="hidden">
+    <div id="questionContainer" class="hidden">
+      <h2 id="question">Loading question...</h2>
+      <div id="options"></div>
+    </div>
+    <div id="scoreboard">
+     
+    </div>
+    <!-- Results Section -->
+  <div id="results">
+    <h2>RESULTS</h2>
+    <table id="resultboard">
+      <thead>
+        <tr>
+          
+          <th>Player</th>
+          <th>Score</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </div>
+
+    <button id="startBtn">Start Quiz</button>
+  </section>
+
+  <script src="script.js"></script>
+</body>
+</html>
